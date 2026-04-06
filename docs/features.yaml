@@ -1,0 +1,320 @@
+document:
+  name: realtime_spike_feature_extraction_spec
+  version: 1.0
+  purpose: >
+    Define computational features for real-time spike detection and sorting
+    using spiking neural networks. Includes cost, benefits, and tradeoffs
+    for each method.
+
+  assumptions:
+    sampling_rate: 20000-30000 Hz
+    latency_target: "<5 ms"
+    hardware_targets:
+      - CPU (non-deterministic scheduling)
+      - embedded (Jetson, DSP, FPGA)
+    priority:
+      - low compute cost
+      - high discriminative power
+      - streaming compatibility
+
+features:
+
+  - name: amplitude
+    symbol: x[t]
+    type: instantaneous
+    equation: "x[t]"
+    operations_per_sample:
+      add: 0
+      mul: 0
+      mem_access: 1
+    compute_cost: 1
+    info_value: 3
+    tradeoff_score: 3
+    pros:
+      - zero cost (already available)
+      - required for thresholding
+      - essential for waveform characterization
+    cons:
+      - not discriminative alone
+      - sensitive to baseline drift
+    best_use:
+      - threshold detection
+      - input to binning neurons
+
+  - name: first_derivative
+    symbol: d1[t]
+    type: instantaneous
+    equation: "x[t] - x[t-1]"
+    operations_per_sample:
+      add: 1
+      mul: 0
+      mem_access: 2
+    compute_cost: 2
+    info_value: 5
+    tradeoff_score: 5
+    pros:
+      - extremely cheap
+      - captures slope (rise/fall)
+      - distinguishes spike vs drift
+      - strong early indicator of spike onset
+    cons:
+      - noisy without filtering
+    best_use:
+      - spike onset detection
+      - slope binning neurons
+
+  - name: second_derivative
+    symbol: d2[t]
+    type: instantaneous
+    equation: "x[t+1] - 2*x[t] + x[t-1]"
+    operations_per_sample:
+      add: 2
+      mul: 1
+      mem_access: 3
+    compute_cost: 3
+    info_value: 5
+    tradeoff_score: 5
+    pros:
+      - captures curvature
+      - identifies turning points (trough/peak)
+      - distinguishes sharp vs smooth signals
+    cons:
+      - slightly higher cost
+      - requires future sample (or delay)
+    best_use:
+      - spike shape detection
+      - curvature binning neurons
+
+  - name: absolute_window_sum
+    symbol: A[t]
+    type: windowed
+    equation: "sum(|x[i]| for i in window)"
+    operations_per_sample:
+      add: 1
+      mul: 0
+      mem_access: 1
+    compute_cost: 2
+    info_value: 4
+    tradeoff_score: 4
+    pros:
+      - no multiplication required
+      - robust magnitude estimate
+      - good for spike vs noise separation
+    cons:
+      - loses sign information
+    best_use:
+      - event strength estimation
+      - noise rejection
+
+  - name: energy
+    symbol: E[t]
+    type: windowed
+    equation: "sum(x[i]^2 for i in window)"
+    operations_per_sample:
+      add: 1
+      mul: 1
+      mem_access: 1
+    compute_cost: 3
+    info_value: 4
+    tradeoff_score: 4
+    pros:
+      - strong measure of signal power
+      - robust to noise fluctuations
+    cons:
+      - multiplication cost
+    best_use:
+      - confidence scoring
+      - spike validation
+
+  - name: teager_energy
+    symbol: Psi[t]
+    type: instantaneous
+    equation: "x[t]^2 - x[t-1]*x[t+1]"
+    operations_per_sample:
+      add: 1
+      mul: 2
+      mem_access: 3
+    compute_cost: 4
+    info_value: 5
+    tradeoff_score: 4
+    pros:
+      - highly sensitive to localized transients
+      - excellent spike detector
+    cons:
+      - higher compute cost
+      - sensitive to noise
+    best_use:
+      - spike detection refinement
+      - high-frequency event detection
+
+  - name: width
+    symbol: W
+    type: event_based
+    equation: "t2 - t1 (threshold crossings)"
+    operations_per_sample:
+      state_tracking: true
+    compute_cost: 4
+    info_value: 5
+    tradeoff_score: 4
+    pros:
+      - highly discriminative between units
+      - separates spikes from artifacts
+    cons:
+      - requires event segmentation
+      - adds latency
+    best_use:
+      - unit classification
+      - downstream feature encoding
+
+  - name: trough_to_peak_time
+    symbol: delta_tp
+    type: event_based
+    equation: "t_peak - t_trough"
+    operations_per_sample:
+      state_tracking: true
+    compute_cost: 4
+    info_value: 5
+    tradeoff_score: 4
+    pros:
+      - strong waveform identity feature
+      - stable across noise
+    cons:
+      - requires peak detection
+    best_use:
+      - neuron identity separation
+
+  - name: biphasic_ratio
+    symbol: R_bp
+    type: event_based
+    equation: "|A_max| / |A_min|"
+    operations_per_sample:
+      add: 1
+      mul: 1
+    compute_cost: 3
+    info_value: 4
+    tradeoff_score: 4
+    pros:
+      - captures waveform asymmetry
+      - useful for unit differentiation
+    cons:
+      - depends on reliable peak detection
+    best_use:
+      - feature binning
+      - unit classification
+
+  - name: baseline_rms
+    symbol: sigma
+    type: windowed
+    equation: "sqrt(mean(x[i]^2))"
+    operations_per_sample:
+      add: 1
+      mul: 1
+    compute_cost: 3
+    info_value: 4
+    tradeoff_score: 4
+    pros:
+      - normalizes signal amplitude
+      - adapts to noise conditions
+    cons:
+      - requires rolling window
+    best_use:
+      - adaptive thresholding
+      - normalization
+
+  - name: temporal_mad_wta
+    symbol: M_k
+    type: time_binned
+    equation: "max(|x[i] - median(window_k)|) / noise_MAD"
+    operations_per_sample:
+      median_sort: true
+      abs: 1
+      max: 1
+    compute_cost: 5
+    info_value: 5
+    tradeoff_score: 4
+    pros:
+      - preserves temporal state across configurable bins
+      - robust to baseline shift via median centering
+      - can be normalized by channel-noise MAD from calibration
+      - flattens cleanly into the existing WeightBank pipeline
+    cons:
+      - more expensive than scalar extrema
+      - requires careful bin-count selection to avoid feature explosion
+      - normalization depends on external or estimated noise MAD
+    best_use:
+      - afferent input traces with 3–30 timesteps
+      - overlapping-window spike/noise discrimination
+      - robust amplitude state encoding
+
+ranking:
+
+  best_low_compute:
+    - amplitude
+    - first_derivative
+
+  best_overall_tradeoff:
+    - amplitude
+    - first_derivative
+    - second_derivative
+
+  best_practical_set:
+    - amplitude
+    - first_derivative
+    - second_derivative
+    - absolute_window_sum
+
+  high_value_additions:
+    - width
+    - trough_to_peak_time
+    - baseline_rms
+
+  expensive_optional:
+    - teager_energy
+    - full_energy
+
+recommended_architecture:
+
+  layer_0_preprocessing:
+    - bandpass_filter
+    - optional_whitening
+    - rolling_baseline_estimation
+
+  layer_1_fast_features:
+    - amplitude
+    - first_derivative
+    - second_derivative
+
+  layer_2_feature_binning:
+    - amplitude_bins
+    - slope_bins
+    - curvature_bins
+    - energy_bins
+
+  layer_3_event_features:
+    - width
+    - trough_to_peak
+    - biphasic_ratio
+
+  layer_4_classification:
+    - spike_vs_noise
+    - unit_identity
+    - control_signal_output
+
+notes:
+
+  key_insight: >
+    Spike identity is primarily encoded by amplitude, slope, and curvature.
+    These correspond to position, velocity, and acceleration of the waveform.
+
+  engineering_recommendation: >
+    Start with derivative-based features for real-time performance.
+    Add event-based features only after stable detection.
+
+  hardware_guidance: >
+    Derivatives are ideal for FPGA/DSP implementation due to minimal operations.
+    Avoid multiplications when possible in early layers.
+
+  final_recommendation: >
+    The minimal viable real-time system should use:
+    amplitude + first_derivative + second_derivative.
+    This provides the best compute-to-information ratio.

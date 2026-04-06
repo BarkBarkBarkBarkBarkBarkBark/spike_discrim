@@ -1,0 +1,5 @@
+[console_scripts]
+spike-api = api.main:start
+spike-benchmark = spike_discrim.scripts.run_benchmark:main
+spike-gen-lfpy = spike_discrim.scripts.run_lfpy_generation:main
+spike-gen-proc = spike_discrim.scripts.run_procedural_generation:main

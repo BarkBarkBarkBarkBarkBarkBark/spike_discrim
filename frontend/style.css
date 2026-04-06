@@ -1,0 +1,157 @@
+/* ── Reset + base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0f1117;
+  --surface: #1a1d27;
+  --border:  #2a2d3e;
+  --text:    #d4d8f0;
+  --muted:   #6b7099;
+  --blue:    #4a9eff;
+  --red:     #ff6b6b;
+  --green:   #4ade80;
+  --yellow:  #fbbf24;
+  --purple:  #a78bfa;
+  --radius:  8px;
+  --font:    "Inter", system-ui, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+header h1 { font-size: 1.6rem; color: var(--blue); letter-spacing: -0.02em; }
+.subtitle  { color: var(--muted); font-size: 0.85rem; }
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.card h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+.hint { font-size: 0.78rem; color: var(--muted); font-weight: 400; }
+
+/* ── Controls ────────────────────────────────────────────────────────────── */
+.controls { display: flex; flex-direction: column; gap: 0.75rem; }
+.control-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.control-row label { color: var(--muted); font-size: 0.82rem; }
+
+select, button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+select:focus, button:hover { border-color: var(--blue); outline: none; }
+#run-select { min-width: 200px; }
+#run-btn    { background: var(--blue); color: #000; font-weight: 600; border: none; }
+#run-btn:hover { background: #7bbfff; }
+#refresh-btn { padding: 0.3rem 0.5rem; }
+
+.job-status { font-size: 0.82rem; color: var(--yellow); }
+.job-status.done   { color: var(--green); }
+.job-status.failed { color: var(--red);   }
+
+/* ── Summary cards row ───────────────────────────────────────────────────── */
+.cards-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem 1.25rem;
+  min-width: 140px;
+}
+.stat-card .label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; }
+.stat-card .value { font-size: 1.5rem; font-weight: 700; color: var(--blue); }
+.stat-card .sub   { font-size: 0.72rem; color: var(--muted); }
+
+/* ── Chart grid ──────────────────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+.chart-wrap {
+  position: relative;
+  height: 280px;
+}
+
+/* ── Validation panel ─────────────────────────────────────────────────────── */
+.validate-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.validate-btn  { font-size: 0.82rem; }
+.btn-link {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 0.82rem;
+  transition: border-color 0.15s;
+}
+.btn-link:hover { border-color: var(--blue); }
+
+.validate-output {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1rem;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.78rem;
+  max-height: 420px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+}
+.validate-output .ok    { color: var(--green); }
+.validate-output .warn  { color: var(--yellow); }
+.validate-output .error { color: var(--red); }
+
+/* ── Misc ─────────────────────────────────────────────────────────────────── */
+.hidden { display: none !important; }
+footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+footer a { color: var(--blue); text-decoration: none; }
+footer a:hover { text-decoration: underline; }

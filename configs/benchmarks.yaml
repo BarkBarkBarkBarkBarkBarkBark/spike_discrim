@@ -1,0 +1,116 @@
+# ============================================================
+# configs/benchmarks.yaml — Feature sets and classifier configurations
+# Feature set definitions from docs/spike_feature_validation.yaml §feature_priority
+# ============================================================
+
+# ── Feature sets to benchmark ───────────────────────────────
+feature_sets:
+
+  - name: set_A_ultra_fast
+    tier: 1
+    description: "Minimal causal features; direct port to FPGA/DSP"
+    scalar_features:
+      - peak_amplitude
+      - trough_amplitude
+      - max_slope
+      - min_slope
+      - max_abs_curvature
+
+  - name: set_B_fast_plus_shape
+    tier: 2
+    description: "Add windowed energy and slope extrema; best overall tradeoff"
+    scalar_features:
+      - peak_amplitude
+      - trough_amplitude
+      - max_slope
+      - min_slope
+      - max_abs_curvature
+      - abs_window_sum_peak
+
+  - name: set_B_temporal_mad
+    tier: 2
+    description: "Overlapping-window robust afferent trace with optional MAD noise normalisation"
+    scalar_features:
+      - mad_wta_bin_*
+
+  - name: set_C_refined_discrimination
+    tier: 3
+    description: "Event features for post-detection unit identity"
+    scalar_features:
+      - peak_amplitude
+      - trough_amplitude
+      - trough_to_peak_time_samples
+      - half_width_samples
+      - biphasic_ratio
+      - baseline_rms
+      - signed_area
+
+  - name: set_D_combined
+    tier: 3
+    description: "All Tier 1–3 scalars combined"
+    scalar_features:
+      - peak_amplitude
+      - trough_amplitude
+      - max_slope
+      - min_slope
+      - max_abs_curvature
+      - abs_window_sum_peak
+      - trough_to_peak_time_samples
+      - half_width_samples
+      - biphasic_ratio
+      - baseline_rms
+      - signed_area
+      - absolute_area
+      - zero_crossing_count
+
+  - name: set_E_combined_plus_temporal_mad
+    tier: 3
+    description: "Combined scalar stack plus flattened overlapping-window MAD/WTA afferent bins"
+    scalar_features:
+      - peak_amplitude
+      - trough_amplitude
+      - max_slope
+      - min_slope
+      - max_abs_curvature
+      - abs_window_sum_peak
+      - trough_to_peak_time_samples
+      - half_width_samples
+      - biphasic_ratio
+      - baseline_rms
+      - signed_area
+      - absolute_area
+      - zero_crossing_count
+      - mad_wta_bin_*
+
+# ── Classifiers to run on each feature set ──────────────────
+models:
+  - threshold_weight_bank       # WeightBank population-code discriminant (hand-coded)
+  - nearest_centroid            # trivial baseline: distance to class mean
+  - lda                         # linear discriminant analysis
+  - logistic_regression         # L2-regularized logistic regression
+  - linear_svm                  # linear SVM
+  - knn_k5                      # k-NN with k=5
+
+# ── Cross-validation / splits ───────────────────────────────
+evaluation:
+  n_cv_folds: 5
+  test_size: 0.2
+  random_seed: 42
+  compute_pairwise_auc: true
+  compute_silhouette: true
+  compute_fisher_score: true
+
+# ── Single-feature evaluation methods ───────────────────────
+single_feature_methods:
+  - fisher_score
+  - mutual_information
+  - single_feature_auc
+  - knn_accuracy          # k=5
+  - logistic_accuracy
+
+# ── Noise injection levels for robustness analysis ──────────
+# Applied to existing waveforms; noise_std in units of dataset amplitude RMS
+noise_stress_test_levels: [0.0, 0.25, 0.5, 1.0, 2.0]
+
+# ── Amplitude scaling robustness ────────────────────────────
+amplitude_scaling_factors: [0.5, 0.75, 1.0, 1.25, 1.5]

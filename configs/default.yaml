@@ -1,0 +1,66 @@
+# ============================================================
+# configs/default.yaml — Runtime hyperparameters
+# All decisions are documented in docs/MANIFEST.md
+# ============================================================
+
+# ── Signal acquisition ──────────────────────────────────────
+sampling_rate_hz: 30000          # Hz; 20000–30000 typical for microwires
+
+# ── Spike snippet extraction ────────────────────────────────
+snippet_length_samples: 64       # total samples per snippet (~2.13 ms @ 30 kHz)
+pre_peak_samples: 20             # samples before trough (0.67 ms onset capture)
+post_peak_samples: 44            # samples after trough (1.47 ms repolarization + AHP)
+
+# ── Detection threshold ─────────────────────────────────────
+threshold_multiplier: 4.5        # × baseline RMS (4–5× is standard; see MANIFEST §9)
+baseline_window_samples: 512     # rolling window for RMS estimation (~17 ms)
+
+# ── Windowed feature parameters ─────────────────────────────
+window_size_samples: 16          # window for absolute_window_sum and short_window_energy
+                                 # (0.53 ms @ 30 kHz; shorter = more localized energy)
+
+# ── Temporal MAD / afferent parameters ──────────────────────
+temporal_mad:
+    enabled: true                  # emit flattened overlapping-window afferent features
+    n_time_bins: 8                 # configurable temporal bins / timesteps (e.g. 3–30)
+    overlap_fraction: 0.5          # 0.5 = 50% overlap between adjacent windows
+    noise_mad_mode: none           # none | global | snippet_edges
+    global_noise_mad: null         # external channel-noise MAD from calibration, if available
+    edge_samples: 8                # samples from each snippet edge for snippet_edges mode
+    mad_scale_factor: 1.4826       # MAD→sigma conversion factor for noise normalization
+
+# ── Feature tier selection ───────────────────────────────────
+# Options: 1 (ultra-fast), 2 (fast+shape), 3 (full event), 4 (optional heavy)
+feature_tier: 2
+
+# ── Input layer / WeightBank ────────────────────────────────
+n_bins: 10                       # population-code neurons per feature (see MANIFEST §4.2)
+sigma_scale: 1.0                 # Gaussian tuning width scaling (1.0 = half inter-quantile)
+discriminant_threshold: 0.5      # WeightBank score threshold for spike/noise decision
+
+# ── Post-hoc afferent clustering ────────────────────────────
+afferent_clustering:
+    enabled: true                # cluster input-layer afferent activations for known spikes
+    n_clusters: null             # defaults to number of unique unit_ids among spikes
+    random_seed: 42
+    n_init: 10
+    max_iter: 300
+    save_outputs: true           # save per-family afferent output matrices for post-hoc inspection
+
+# ── Class labels ────────────────────────────────────────────
+noise_label: 0
+spike_label: 1
+
+# ── I/O directories ─────────────────────────────────────────
+data_dir:          data/
+synthetic_dir:     data/synthetic/
+real_units_dir:    data/real_units/
+results_dir:       data/results/
+profiling_dir:     data/profiling/
+
+# ── Profiling ────────────────────────────────────────────────
+profiling_enabled: true
+n_warmup_calls: 3                # JIT warmup calls before timing (see MANIFEST §5)
+
+# ── Reproducibility ─────────────────────────────────────────
+random_seed: 42

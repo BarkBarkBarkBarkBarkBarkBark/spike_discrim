@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spike_discrim"
+version = "0.1.0"
+description = "Real-time single-unit spike discrimination: input-layer feature benchmarking for SNNs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "numba>=0.59",
+    "scikit-learn>=1.4",
+    "pandas>=2.2",
+    "pyarrow>=15.0",
+    "h5py>=3.10",
+    "matplotlib>=3.8",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+lfpy = [
+    "LFPy>=2.3",
+    "neuron>=8.2",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+]
+api = [
+    "fastapi[standard]>=0.111",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+spike-benchmark    = "spike_discrim.scripts.run_benchmark:main"
+spike-gen-lfpy     = "spike_discrim.scripts.run_lfpy_generation:main"
+spike-gen-proc     = "spike_discrim.scripts.run_procedural_generation:main"
+spike-api          = "api.main:start"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

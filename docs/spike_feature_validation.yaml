@@ -1,0 +1,859 @@
+document:
+  name: spike_feature_validation_project_context
+  version: 1.0
+  purpose: >
+    Define a standalone project to validate candidate real-time extracellular
+    spike features for use in the input layer of a spiking neural network (SNN)
+    designed for closed-loop single-neuron experiments in hippocampal microwire
+    recordings. The project should evaluate feature usefulness for:
+      1) unit discrimination,
+      2) noise rejection,
+      3) robustness across synthetic and real data,
+      4) suitability for real-time implementation.
+
+  top_level_goal: >
+    Build a reproducible benchmarking framework that compares feature families
+    using synthetic extracellular spikes generated from biophysical models and
+    real sorted spikes/noise from existing pipelines. Output ranked features,
+    ranked feature sets, and implementation guidance for the real-time SNN
+    input layer.
+
+  primary_outputs:
+    - ranked_feature_table
+    - ranked_feature_set_table
+    - synthetic_vs_real_generalization_report
+    - noise_discrimination_report
+    - latency_cost_report
+    - canonical_dataset_format
+    - reusable_python_package
+    - configuration_files_for_future_realtime_pipeline
+
+  non_goals:
+    - build a production-grade spike sorter
+    - prove perfect neuron identity from extracellular waveform alone
+    - optimize closed-loop control policy
+    - replace offline sorter curation entirely
+
+project_hypothesis:
+  core_claim: >
+    A compact set of waveform-shape features, especially amplitude, first
+    derivative, second derivative, selected timing features, and selected
+    energy/shape features, can provide strong discrimination of single units
+    and noise while remaining feasible for real-time embedded implementation.
+
+  subordinate_claims:
+    - >
+      Features derived from waveform position, slope, and curvature will provide
+      the best compute-to-information tradeoff.
+    - >
+      Event-based features such as trough-to-peak time and width will improve
+      discrimination when added after fast detection.
+    - >
+      Noise can be modeled as its own class and rejected using feature patterns,
+      not only by threshold heuristics.
+    - >
+      Synthetic waveforms from biophysical forward models can help discover and
+      validate useful feature spaces even if they are not sufficient alone to
+      model all real data variability.
+
+design_principles:
+  - local_first_evaluation
+  - explicit_ground_truth_tracking
+  - separate_detection_from_classification
+  - separate_unit_discrimination_from_noise_rejection
+  - benchmark_single_features_and_feature_sets
+  - compute_cost_must_be_measured_not_assumed
+  - use_simple_and_interpretable_baselines
+  - support_future_streaming_and_embedded_porting
+
+data_domains:
+  synthetic:
+    description: >
+      Waveforms generated from biophysical forward models and procedural
+      waveform generators. Used to probe known parameter variation and feature
+      separability.
+    expected_sources:
+      - LFPy_generated_extracellular_waveforms
+      - procedural_biphasic_triphasic_waveform_generator
+    advantages:
+      - known labels
+      - controllable morphology and electrode geometry variation
+      - scalable dataset generation
+    limitations:
+      - may not capture all real recording artifacts
+      - inverse problem remains non-unique
+
+  real_units:
+    description: >
+      Real sorted spikes from existing intracranial microwire data. Intended to
+      test whether synthetic insights transfer to human recordings.
+    expected_sources:
+      - osort_output_from_matlab
+      - curated_waveform_clusters
+    advantages:
+      - biologically relevant
+      - directly tied to target use case
+    limitations:
+      - labels may be imperfect
+      - sorting artifacts may leak into ground truth
+
+  real_noise:
+    description: >
+      Real noise/artifact snippets collected from osort rejected events,
+      threshold crossings not assigned to stable units, or curated noise labels.
+    expected_sources:
+      - osort_noise_hits
+      - rejected_threshold_events
+      - manually_flagged_artifacts
+    advantages:
+      - realistic artifact distribution
+      - critical for closed-loop false positive control
+    limitations:
+      - may be heterogeneous
+      - curation protocol must be explicit
+
+evaluation_tasks:
+  - name: synthetic_unit_discrimination
+    question: >
+      Can features separate known synthetic neuron classes under controlled
+      variation?
+    labels:
+      - neuron_id
+      - morphology_class
+      - distance_bin
+      - orientation_bin
+
+  - name: real_unit_discrimination
+    question: >
+      Can features separate real sorted units from one another on the same
+      channel and across sessions?
+    labels:
+      - unit_id
+      - channel_id
+      - session_id
+
+  - name: spike_vs_noise_discrimination
+    question: >
+      Can features reject real noise/artifacts while preserving true spikes?
+    labels:
+      - class: [spike, noise]
+
+  - name: synthetic_to_real_transfer
+    question: >
+      Do feature rankings discovered on synthetic data remain useful on real
+      data?
+
+  - name: compute_tradeoff_assessment
+    question: >
+      Which features provide the best discrimination per unit compute and memory
+      cost?
+
+feature_families:
+  fast_streaming_features:
+    - amplitude
+    - first_derivative
+    - second_derivative
+    - absolute_window_sum
+    - short_window_energy
+    - teager_energy
+
+  event_shape_features:
+    - trough_amplitude
+    - peak_amplitude
+    - trough_to_peak_time
+    - half_width
+    - full_width
+    - biphasic_ratio
+    - signed_area
+    - absolute_area
+    - max_rising_slope
+    - max_falling_slope
+    - curvature_at_trough
+    - curvature_at_peak
+    - zero_crossing_count
+    - baseline_rms
+    - pre_event_rms
+    - post_event_rms
+
+  optional_shape_basis_features:
+    - pca_projection_coefficients
+    - template_projection_scores
+    - wavelet_coefficients
+    - matched_filter_scores
+    - derivative_template_scores
+
+feature_priority:
+  tier_1_minimal_realtime:
+    - amplitude
+    - first_derivative
+    - second_derivative
+
+  tier_2_practical_realtime:
+    - amplitude
+    - first_derivative
+    - second_derivative
+    - absolute_window_sum
+    - trough_amplitude
+    - peak_amplitude
+    - max_rising_slope
+    - max_falling_slope
+
+  tier_3_event_refinement:
+    - trough_to_peak_time
+    - half_width
+    - biphasic_ratio
+    - baseline_rms
+    - signed_area
+    - absolute_area
+
+  tier_4_optional_heavier_features:
+    - teager_energy
+    - short_window_energy
+    - pca_projection_coefficients
+    - wavelet_coefficients
+
+feature_definitions:
+  amplitude:
+    equation: "x[t]"
+    causal: true
+    memory_requirement_samples: 0
+    expected_compute_class: very_low
+    expected_value:
+      - thresholding
+      - rough magnitude coding
+
+  first_derivative:
+    equation: "x[t] - x[t-1]"
+    causal: true
+    memory_requirement_samples: 1
+    expected_compute_class: very_low
+    expected_value:
+      - slope encoding
+      - onset sharpness
+      - spike_vs_drift separation
+
+  second_derivative:
+    equation: "x[t] - 2*x[t-1] + x[t-2]"
+    causal: true
+    memory_requirement_samples: 2
+    expected_compute_class: low
+    expected_value:
+      - curvature encoding
+      - turning point detection
+      - spike shape sharpening
+
+  absolute_window_sum:
+    equation: "sum(abs(x[i]) for i in window)"
+    causal: true
+    memory_requirement_samples: variable_window
+    expected_compute_class: low
+    expected_value:
+      - event strength
+      - rough robustness to sign
+
+  short_window_energy:
+    equation: "sum(x[i]^2 for i in window)"
+    causal: true
+    memory_requirement_samples: variable_window
+    expected_compute_class: low_to_medium
+    expected_value:
+      - localized power estimate
+      - confidence scoring
+
+  teager_energy:
+    equation: "x[t]^2 - x[t-1]*x[t+1]"
+    causal: false_by_default
+    causal_variant_possible: true
+    memory_requirement_samples: 2_or_3
+    expected_compute_class: medium
+    expected_value:
+      - localized transient sensitivity
+      - refined spike detection
+
+  trough_to_peak_time:
+    equation: "t_peak - t_trough"
+    causal: event_based
+    memory_requirement_samples: event_window
+    expected_compute_class: medium
+    expected_value:
+      - strong unit identity feature
+
+  half_width:
+    equation: "duration at half trough amplitude"
+    causal: event_based
+    memory_requirement_samples: event_window
+    expected_compute_class: medium
+    expected_value:
+      - strong spike/artifact separation
+      - unit shape discrimination
+
+  biphasic_ratio:
+    equation: "abs(A_peak) / (abs(A_trough) + epsilon)"
+    causal: event_based
+    memory_requirement_samples: event_window
+    expected_compute_class: low_to_medium
+    expected_value:
+      - asymmetry encoding
+      - waveform family identification
+
+dataset_schema:
+  canonical_object_model:
+    waveform_snippet:
+      required_fields:
+        - snippet_id
+        - source_domain
+        - session_id
+        - channel_id
+        - sampling_rate_hz
+        - waveform
+        - time_axis_ms
+        - label_type
+        - class_label
+        - unit_label
+        - metadata
+    feature_vector:
+      required_fields:
+        - snippet_id
+        - feature_name
+        - feature_value
+        - feature_group
+        - compute_cost_estimate
+    event_record:
+      required_fields:
+        - snippet_id
+        - onset_sample
+        - peak_sample
+        - trough_sample
+        - assigned_label
+        - confidence
+    provenance_record:
+      required_fields:
+        - snippet_id
+        - origin_file
+        - origin_format
+        - preprocessing_applied
+        - extraction_parameters
+        - curation_notes
+
+  recommended_storage:
+    waveform_table_format:
+      - parquet
+      - zarr
+      - numpy_npz
+    metadata_format:
+      - json
+      - parquet
+    config_format:
+      - yaml
+
+  waveform_tensor_convention:
+    shape: "[n_snippets, n_samples]"
+    dtype: float32
+    normalization_options:
+      - raw_microvolts
+      - zscore_by_baseline
+      - peak_normalized
+    required_raw_retention: true
+
+matlab_osort_integration:
+  goal: >
+    Load existing MATLAB/osort outputs and convert them into a canonical Python
+    representation compatible with in-house code and optionally with
+    SpikeInterface-compatible data structures where practical.
+
+  desired_adapter_outputs:
+    - waveform_dictionary
+    - spike_time_dictionary
+    - unit_id_to_waveforms_map
+    - noise_event_dictionary
+    - channel_metadata
+    - export_to_parquet_or_npz
+
+  canonical_python_structure:
+    example:
+      units:
+        unit_001:
+          spike_times_samples: []
+          waveform_indices: []
+          mean_waveform: []
+          waveforms: []
+          channel_id: ""
+          metadata: {}
+      noise:
+        noise_001:
+          event_times_samples: []
+          waveforms: []
+          channel_id: ""
+          metadata: {}
+
+  adapter_tasks:
+    - inspect_matlab_file_structure
+    - identify_spike_time_fields
+    - identify_waveform_fields
+    - identify_unit_assignments
+    - identify_rejected_or_noise_events
+    - create_python_conversion_module
+    - save_canonical_export
+    - write_validation_tests_for_conversion
+
+spikeinterface_role:
+  use_cases:
+    - waveform extraction housing
+    - standard data abstractions where helpful
+    - quality metric comparisons
+    - optional visualization
+  caution:
+    - >
+      Do not force the entire project architecture into SpikeInterface objects if
+      simpler custom data classes are clearer for feature benchmarking.
+  recommendation:
+    - >
+      Use SpikeInterface at the boundaries: reading, waveform extraction,
+      comparison, optional metric tooling. Keep the core feature benchmarking
+      code in a standalone package.
+
+synthetic_generation_strategy:
+  purpose: >
+    Generate a controllable distribution of extracellular waveforms for feature
+    discovery and stress testing.
+
+  generation_modes:
+    lfpy_mode:
+      description: >
+        Generate extracellular waveforms from multicompartment neuron models
+        under varying geometry and recording conditions.
+      parameters_to_vary:
+        - morphology_class
+        - electrode_distance
+        - electrode_orientation
+        - soma_dendrite_alignment
+        - noise_level
+        - channel_filtering
+      outputs:
+        - waveform_snippets
+        - known_parameter_labels
+
+    procedural_mode:
+      description: >
+        Generate biphasic/triphasic waveforms using parametric waveform models
+        as a fast synthetic baseline.
+      parameters_to_vary:
+        - negative_lobe_amplitude
+        - positive_lobe_amplitude
+        - lobe_widths
+        - lobe_delays
+        - asymmetry
+        - additive_noise_level
+        - baseline_drift
+      outputs:
+        - waveform_snippets
+        - known_class_labels
+
+  synthetic_noise_types:
+    - gaussian_noise
+    - colored_noise
+    - drift
+    - movement_artifact_like_transients
+    - clipped_events
+    - high_frequency_bursts
+    - multiphasic_irregular_artifacts
+
+feature_benchmarking_strategy:
+  stage_1_single_feature_tests:
+    description: >
+      Evaluate each feature individually for unit discrimination and spike/noise
+      classification.
+    methods:
+      - fisher_score
+      - mutual_information_estimate
+      - single_feature_auc
+      - single_feature_knn_accuracy
+      - single_feature_logistic_regression
+      - single_feature_threshold_search
+    outputs:
+      - per_feature_rankings
+      - domain_specific_rankings
+      - compute_vs_accuracy_plot
+
+  stage_2_feature_pair_tests:
+    description: >
+      Evaluate whether low-cost feature pairs outperform single features.
+    candidate_pairs:
+      - [amplitude, first_derivative]
+      - [amplitude, second_derivative]
+      - [first_derivative, second_derivative]
+      - [trough_amplitude, trough_to_peak_time]
+      - [max_rising_slope, half_width]
+      - [biphasic_ratio, half_width]
+
+  stage_3_feature_set_tests:
+    description: >
+      Evaluate compact feature sets intended for actual real-time use.
+    candidate_sets:
+      minimal_realtime:
+        - amplitude
+        - first_derivative
+        - second_derivative
+      practical_realtime:
+        - amplitude
+        - first_derivative
+        - second_derivative
+        - absolute_window_sum
+        - trough_amplitude
+        - peak_amplitude
+      refined_event_set:
+        - amplitude
+        - first_derivative
+        - second_derivative
+        - trough_to_peak_time
+        - half_width
+        - biphasic_ratio
+        - baseline_rms
+
+  stage_4_transfer_tests:
+    description: >
+      Rank features on synthetic data, then test whether ranking predicts
+      performance on real unit and real noise datasets.
+
+discrimination_models:
+  purpose: >
+    Use simple interpretable classifiers first. The goal is to validate features,
+    not hide poor features behind overly strong black-box models.
+
+  baseline_models:
+    - threshold_rules
+    - nearest_centroid
+    - knn
+    - logistic_regression
+    - linear_svm
+    - lda
+    - qda
+
+  optional_models:
+    - random_forest
+    - xgboost
+    - shallow_mlp
+
+  explicit_rule_benchmarks:
+    - >
+      hand-coded discriminant rules using trough amplitude, slope, curvature,
+      and width
+    - >
+      noise veto rules using baseline RMS, zero crossing count, and shape
+      inconsistency
+
+validation_splits:
+  synthetic:
+    split_strategy:
+      - train_on_parameter_subset
+      - test_on_unseen_parameter_subset
+  real_units:
+    split_strategy:
+      - train_test_split_by_spike
+      - split_by_time_block
+      - leave_one_unit_out_where_possible
+  real_noise:
+    split_strategy:
+      - random_split
+      - split_by_artifact_type_if_labeled
+  transfer:
+    split_strategy:
+      - synthetic_train_real_test
+      - real_train_synthetic_test
+      - session_generalization
+      - channel_generalization
+
+metrics:
+  unit_discrimination:
+    - pairwise_auc
+    - macro_f1
+    - balanced_accuracy
+    - silhouette_score_in_feature_space
+    - nearest_neighbor_purity
+    - confusion_matrix
+  spike_vs_noise:
+    - auc
+    - precision
+    - recall
+    - false_positive_rate
+    - false_negative_rate
+    - precision_at_fixed_recall
+  realtime_implementation:
+    - operations_per_sample_estimate
+    - memory_requirement_samples
+    - causal_status
+    - measured_runtime_python
+    - measured_runtime_numba
+    - measured_runtime_vectorized
+    - projected_embedded_cost
+  stability:
+    - performance_under_added_noise
+    - performance_under_amplitude_scaling
+    - performance_under_time_jitter
+    - performance_under_filter_variation
+
+compute_cost_framework:
+  objective: >
+    Assign each feature a practical implementation cost score and compare this
+    against discrimination value.
+
+  scoring_axes:
+    - arithmetic_cost
+    - memory_cost
+    - state_tracking_cost
+    - causality_penalty
+    - event_window_penalty
+
+  rating_scale:
+    1: trivial
+    2: very_low
+    3: low
+    4: medium
+    5: high
+    6: very_high
+
+  final_tradeoff_score:
+    description: >
+      Higher is better. Should reward discrimination and penalize compute.
+    suggested_formula: >
+      tradeoff_score = normalized_discrimination_score /
+      (normalized_compute_cost + epsilon)
+
+noise_validation_strategy:
+  purpose: >
+    Identify which features and feature sets are specifically useful for
+    discriminating noise and artifacts from true spikes.
+
+  noise_sources:
+    - osort_rejected_events
+    - threshold_crossings_not_assigned_to_units
+    - manually_curated_artifacts
+    - synthetic_artifacts
+
+  analyses:
+    - spike_vs_noise_binary_classification
+    - per_noise_type_breakdown
+    - false_positive_error_analysis
+    - feature_importance_for_noise_rejection
+    - visualization_of_noise_feature_distributions
+
+  desired_outcome:
+    - >
+      a compact subset of features that can serve as explicit noise neurons or
+      veto channels in the SNN input layer
+
+snn_mapping_goal:
+  purpose: >
+    Map validated scalar features into tuned input neuron populations for later
+    SNN use.
+
+  encoding_strategies:
+    rate_code:
+      description: >
+        stronger feature match leads to higher firing rate
+    latency_code:
+      description: >
+        stronger feature match leads to earlier spike time
+    population_code:
+      description: >
+        each feature is represented by neurons with different preferred bins
+
+  preferred_for_project:
+    - population_code
+    - latency_code
+
+  candidate_neuron_banks:
+    amplitude_bins:
+      preferred_centers_strategy: quantiles_or_data_driven_clusters
+    slope_bins:
+      preferred_centers_strategy: quantiles_or_data_driven_clusters
+    curvature_bins:
+      preferred_centers_strategy: quantiles_or_data_driven_clusters
+    width_bins:
+      preferred_centers_strategy: quantiles_or_data_driven_clusters
+    biphasic_ratio_bins:
+      preferred_centers_strategy: quantiles_or_data_driven_clusters
+
+repository_plan:
+  repo_name: realtime-spike-feature-validation
+  structure:
+    - src/
+    - configs/
+    - notebooks/
+    - tests/
+    - scripts/
+    - data_specs/
+    - reports/
+    - adapters/
+    - synthetic/
+    - benchmarking/
+    - visualization/
+
+  suggested_modules:
+    src_package: spike_feature_validation
+    modules:
+      - io/
+      - adapters/
+      - preprocessing/
+      - synthetic/
+      - features/
+      - benchmarking/
+      - models/
+      - metrics/
+      - visualization/
+      - export/
+      - config/
+
+  key_files:
+    - configs/default.yaml
+    - configs/features.yaml
+    - configs/benchmarks.yaml
+    - data_specs/canonical_schema.yaml
+    - adapters/osort_matlab_adapter.py
+    - synthetic/lfpy_generator.py
+    - synthetic/procedural_generator.py
+    - features/basic_features.py
+    - features/event_features.py
+    - benchmarking/run_single_feature_benchmark.py
+    - benchmarking/run_feature_set_benchmark.py
+    - benchmarking/run_noise_benchmark.py
+    - reports/generate_summary_report.py
+
+implementation_phases:
+  phase_1_foundation:
+    goals:
+      - create canonical schema
+      - create osort matlab adapter
+      - create waveform snippet dataset writer
+      - implement tier_1 and tier_2 features
+      - add tests
+    exit_criteria:
+      - matlab data loads into canonical python format
+      - feature extraction runs on real snippets
+      - basic reports generated
+
+  phase_2_synthetic_pipeline:
+    goals:
+      - procedural synthetic generator
+      - optional lfpy generator integration
+      - synthetic benchmark datasets
+      - single-feature ranking
+    exit_criteria:
+      - synthetic datasets generated reproducibly
+      - per-feature rankings reported
+
+  phase_3_real_data_benchmarks:
+    goals:
+      - benchmark on sorted real units
+      - benchmark on real noise
+      - compare synthetic and real rankings
+    exit_criteria:
+      - feature ranking tables generated
+      - noise rejection tables generated
+      - transfer analysis completed
+
+  phase_4_snn_mapping:
+    goals:
+      - convert top features into binning scheme
+      - produce neuron bank config files
+      - emit input-layer design artifact
+    exit_criteria:
+      - machine-readable neuron-bank config produced
+      - top features mapped to population codes
+
+agent_execution_guidance:
+  expected_workflow:
+    - read_realtime_spike_feature_extraction_spec
+    - create_repo_scaffold
+    - implement_canonical_schema
+    - inspect_matlab_osort_files
+    - build_adapter
+    - write_schema_validation_tests
+    - implement_tier_1_features
+    - implement_tier_2_features
+    - benchmark_on_small_real_subset
+    - implement_procedural_synthetic_generator
+    - benchmark_single_features
+    - benchmark_feature_sets
+    - integrate_noise_evaluation
+    - generate_reports
+    - propose_top_snn_input_features
+
+  coding_preferences:
+    - python_first
+    - typed_code_when_reasonable
+    - avoid_framework_lock_in
+    - modular_small_functions
+    - explicit_config_files
+    - tests_for_io_and_feature_correctness
+    - retain_raw_waveforms_alongside_features
+
+  constraints:
+    - do_not_assume_spikeinterface_must_own_all_objects
+    - do_not_discard_raw_data
+    - do_not_hide_feature_failures_with_complex_models
+    - keep_realtime_implementation_feasibility_visible
+
+acceptance_criteria:
+  must_have:
+    - >
+      can load MATLAB/osort outputs into a canonical representation containing
+      unit ids, spike times, and waveforms
+    - >
+      can store and reload waveform snippets and labels in a clean Python-native
+      format
+    - can compute all priority features
+    - can benchmark single features and feature sets
+    - can evaluate spike_vs_noise discrimination
+    - can produce ranked reports
+    - can output top candidate features for real-time SNN input layer
+
+  should_have:
+    - SpikeInterface integration where useful
+    - procedural synthetic waveform generation
+    - optional LFPy integration
+    - compact visualizations
+    - config-driven experiments
+
+  nice_to_have:
+    - pca and wavelet comparisons
+    - interactive dashboard
+    - export of neuron bin centers for SNN front end
+
+recommended_initial_feature_sets:
+  set_A_ultra_fast:
+    - amplitude
+    - first_derivative
+    - second_derivative
+
+  set_B_fast_plus_shape:
+    - amplitude
+    - first_derivative
+    - second_derivative
+    - trough_amplitude
+    - peak_amplitude
+    - absolute_window_sum
+
+  set_C_refined_discrimination:
+    - amplitude
+    - first_derivative
+    - second_derivative
+    - trough_to_peak_time
+    - half_width
+    - biphasic_ratio
+    - baseline_rms
+
+final_project_deliverable:
+  description: >
+    A reproducible benchmarking project that identifies which waveform features
+    best discriminate extracellular single-unit spikes and noise under real-time
+    constraints, and converts the best feature subset into a machine-readable
+    specification for the SNN input layer.
+
+  final_outputs:
+    - top_features_ranked_by_tradeoff
+    - top_feature_sets_ranked_by_tradeoff
+    - best_noise_rejection_features
+    - synthetic_to_real_transfer_summary
+    - canonical_data_adapter_for_osort
+    - snn_input_layer_feature_config

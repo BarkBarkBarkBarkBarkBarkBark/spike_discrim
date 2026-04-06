@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>spike_discrim — Interpretation Guide</title>
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    /* Guide-specific overrides */
+    body { max-width: 860px; }
+
+    .toc { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .toc a {
+      padding: 0.25rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--blue);
+      text-decoration: none;
+      font-size: 0.8rem;
+    }
+    .toc a:hover { border-color: var(--blue); }
+
+    h2.section {
+      font-size: 1.1rem;
+      color: var(--blue);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      margin: 2rem 0 1rem;
+    }
+    h3.item-title {
+      font-size: 0.92rem;
+      color: var(--text);
+      margin: 1.2rem 0 0.2rem;
+    }
+
+    .feature-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .feature-card.top { border-color: var(--blue); }
+
+    .feature-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.4rem;
+    }
+    .feature-name {
+      font-family: "SF Mono","Fira Code",monospace;
+      font-size: 0.9rem;
+      color: var(--blue);
+      font-weight: 600;
+    }
+    .tier-badge {
+      font-size: 0.7rem;
+      padding: 0.1rem 0.45rem;
+      border-radius: 3px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .tier-badge.t3 { border-color: var(--purple); color: var(--purple); }
+
+    .formula {
+      font-family: "SF Mono","Fira Code",monospace;
+      font-size: 0.78rem;
+      color: var(--yellow);
+      background: #1a1800;
+      border: 1px solid #3a3400;
+      border-radius: 4px;
+      padding: 0.2rem 0.6rem;
+      display: inline-block;
+      margin: 0.3rem 0;
+    }
+    .units { font-size: 0.76rem; color: var(--muted); margin-left: 0.5rem; }
+
+    .short  { font-size: 0.85rem; color: var(--text); margin: 0.35rem 0; }
+    .detail { font-size: 0.82rem; color: var(--muted); line-height: 1.65; white-space: pre-wrap; }
+    .why {
+      font-size: 0.78rem;
+      color: var(--green);
+      margin-top: 0.5rem;
+      padding: 0.25rem 0.6rem;
+      border-left: 2px solid var(--green);
+      background: #0a2010;
+    }
+    .why.top { color: #ffe082; border-color: #ffe082; background: #1a1400; }
+
+    .metric-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.9rem 1.2rem;
+      margin-bottom: 0.65rem;
+    }
+    .metric-name { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .range { font-size: 0.75rem; color: var(--muted); margin: 0.2rem 0; }
+
+    .panel-card {
+      border-left: 3px solid var(--blue);
+      padding: 0.75rem 1.1rem;
+      background: var(--bg);
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 0.65rem;
+    }
+    .panel-title { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .panel-desc  { font-size: 0.82rem; color: var(--muted); margin-top: 0.3rem;
+                   line-height: 1.65; white-space: pre-wrap; }
+
+    .step-row {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+    }
+    .step-num {
+      min-width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: var(--blue);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-detail { font-size: 0.83rem; color: var(--muted); padding-top: 0.3rem; }
+    .step-name   { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+
+    .spinner { display: inline-block; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #error-msg { color: var(--red); font-size: 0.85rem; padding: 1rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="/" style="color:inherit;text-decoration:none;">spike_discrim</a></h1>
+    <span class="subtitle">Interpretation Guide</span>
+    <nav style="margin-left:auto;display:flex;gap:1rem;font-size:0.82rem;">
+      <a href="/" style="color:var(--blue);">← Dashboard</a>
+      <a href="/api/docs" target="_blank" style="color:var(--muted);">OpenAPI</a>
+    </nav>
+  </header>
+
+  <div id="loading" style="color:var(--muted);padding:2rem 0;">
+    <span class="spinner">⟳</span> Loading guide data from API…
+  </div>
+  <div id="error-msg" class="hidden"></div>
+
+  <div id="guide-content" class="hidden">
+
+    <!-- Table of contents -->
+    <nav class="toc" id="toc"></nav>
+
+    <!-- ── What you are looking at ── -->
+    <h2 class="section" id="s-overview">What you are looking at</h2>
+    <div class="card">
+      <p style="font-size:0.88rem;line-height:1.7;color:var(--muted);">
+        This dashboard benchmarks the <strong style="color:var(--text)">input layer</strong>
+        of a spiking neural network (SNN) designed to discriminate real neuronal action
+        potentials from noise artefacts in extracellular electrode recordings.
+      </p>
+      <p style="font-size:0.88rem;line-height:1.7;color:var(--muted);margin-top:0.75rem;">
+        <strong style="color:var(--text)">The core question:</strong>
+        Given a 64-sample (≈2.1 ms at 30 kHz) voltage snippet captured at a
+        threshold crossing, is this a real action potential from a neuron, or
+        electrical noise?
+      </p>
+      <p style="font-size:0.88rem;line-height:1.7;color:var(--muted);margin-top:0.75rem;">
+        The pipeline extracts numerical <em>features</em> from each snippet
+        (e.g. trough depth, spike width, baseline noise level), benchmarks how well
+        each feature separates the two classes, then evaluates several classifiers
+        on combinations of features. The hand-coded
+        <strong style="color:var(--text)">WeightBank</strong> input layer uses
+        quantile-initialised Gaussian population-code neurons so that real spikes
+        produce high activation and noise produces low activation — without any
+        gradient-based training.
+      </p>
+    </div>
+
+    <!-- ── Dashboard panels ── -->
+    <h2 class="section" id="s-panels">Dashboard panels</h2>
+    <div id="panels-container"></div>
+
+    <!-- ── Pipeline steps ── -->
+    <h2 class="section" id="s-pipeline">Benchmark pipeline</h2>
+    <div id="pipeline-container"></div>
+
+    <!-- ── Feature glossary ── -->
+    <h2 class="section" id="s-features">Feature glossary</h2>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem;">
+      Features are grouped by tier.
+      <strong style="color:var(--text)">Tier 1/2</strong> features are causal
+      (use only past samples) and suitable for real-time streaming pipelines.
+      <strong style="color:var(--purple)">Tier 3</strong> (prefix <code style="color:var(--purple)">ev_</code>)
+      features require the complete snippet and add one snippet-length latency.
+    </p>
+
+    <h3 class="item-title">Tier 1 / 2 — Streaming causal features</h3>
+    <div id="features-t2"></div>
+
+    <h3 class="item-title" style="margin-top:1.5rem;">
+      Tier 3 — Event features
+      <span style="font-size:0.75rem;color:var(--purple);margin-left:0.5rem;">prefix: ev_</span>
+    </h3>
+    <div id="features-t3"></div>
+
+    <!-- ── Metrics ── -->
+    <h2 class="section" id="s-metrics">Evaluation metrics</h2>
+    <div id="metrics-container"></div>
+
+    <div style="height:3rem;"></div>
+  </div>
+
+  <script>
+    const API = "";
+
+    async function load() {
+      const loading = document.getElementById("loading");
+      const errEl   = document.getElementById("error-msg");
+      const content = document.getElementById("guide-content");
+      try {
+        const [features, panels, metrics, pipeline] = await Promise.all([
+          fetch(API + "/api/guide/features").then(r => r.json()),
+          fetch(API + "/api/guide/panels").then(r => r.json()),
+          fetch(API + "/api/guide/metrics").then(r => r.json()),
+          fetch(API + "/api/guide/pipeline").then(r => r.json()),
+        ]);
+
+        renderToc();
+        renderPanels(panels);
+        renderPipeline(pipeline);
+        renderFeatures(features);
+        renderMetrics(metrics);
+
+        loading.classList.add("hidden");
+        content.classList.remove("hidden");
+      } catch (e) {
+        loading.classList.add("hidden");
+        errEl.classList.remove("hidden");
+        errEl.textContent = "Could not load guide data: " + e.message +
+          "  (Is the API server running on port 8099?)";
+      }
+    }
+
+    function renderToc() {
+      const sections = [
+        ["s-overview",  "Overview"],
+        ["s-panels",    "Dashboard panels"],
+        ["s-pipeline",  "Pipeline"],
+        ["s-features",  "Feature glossary"],
+        ["s-metrics",   "Metrics"],
+      ];
+      document.getElementById("toc").innerHTML = sections
+        .map(([id, label]) => `<a href="#${id}">${label}</a>`)
+        .join("");
+    }
+
+    function renderPanels(panels) {
+      const c = document.getElementById("panels-container");
+      c.innerHTML = panels.map(p => `
+        <div class="panel-card">
+          <div class="panel-title">${p.title}</div>
+          <div class="panel-desc">${(p.description || p.items?.map(i =>
+            `<strong>${i.label}:</strong> ${i.meaning}`).join("\n") || "")}</div>
+        </div>`).join("");
+    }
+
+    function renderPipeline(steps) {
+      const c = document.getElementById("pipeline-container");
+      c.innerHTML = steps.map(s => `
+        <div class="step-row">
+          <div class="step-num">${s.step}</div>
+          <div>
+            <div class="step-name">${s.name}</div>
+            <div class="step-detail">${s.detail}</div>
+          </div>
+        </div>`).join("");
+    }
+
+    function renderFeatures(features) {
+      const t2 = features.filter(f => f.tier <= 2);
+      const t3 = features.filter(f => f.tier === 3);
+      document.getElementById("features-t2").innerHTML = t2.map(featureCard).join("");
+      document.getElementById("features-t3").innerHTML = t3.map(featureCard).join("");
+    }
+
+    function featureCard(f) {
+      const isTop = f.name === "ev_baseline_rms";
+      const tierClass = f.tier === 3 ? "t3" : "";
+      const tierLabel = f.tier === 3 ? "Tier 3" : "Tier 1/2";
+      const whyClass  = isTop ? "why top" : "why";
+      return `
+        <div class="feature-card ${isTop ? "top" : ""}">
+          <div class="feature-header">
+            <span class="feature-name">${f.name}</span>
+            <span class="tier-badge ${tierClass}">${tierLabel}</span>
+            <span class="units">${f.units}</span>
+          </div>
+          <div class="formula">${f.formula}</div>
+          <div class="short">${f.short}</div>
+          <div class="detail">${f.detail}</div>
+          <div class="${whyClass}">▸ ${f.why_discriminates}</div>
+        </div>`;
+    }
+
+    function renderMetrics(metrics) {
+      const c = document.getElementById("metrics-container");
+      c.innerHTML = metrics.map(m => `
+        <div class="metric-card">
+          <div class="metric-name">${m.name}</div>
+          <div class="formula">${m.formula}</div>
+          <div class="range">Range: ${m.range}</div>
+          <div class="detail" style="margin-top:0.4rem;">${m.interpretation}</div>
+        </div>`).join("");
+    }
+
+    load();
+  </script>
+</body>
+</html>

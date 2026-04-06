@@ -1,0 +1,174 @@
+Metadata-Version: 2.4
+Name: spike_discrim
+Version: 0.1.0
+Summary: Real-time single-unit spike discrimination: input-layer feature benchmarking for SNNs
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.26
+Requires-Dist: scipy>=1.12
+Requires-Dist: numba>=0.59
+Requires-Dist: scikit-learn>=1.4
+Requires-Dist: pandas>=2.2
+Requires-Dist: pyarrow>=15.0
+Requires-Dist: h5py>=3.10
+Requires-Dist: matplotlib>=3.8
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: tqdm>=4.66
+Provides-Extra: lfpy
+Requires-Dist: LFPy>=2.3; extra == "lfpy"
+Requires-Dist: neuron>=8.2; extra == "lfpy"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-cov>=5.0; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+Provides-Extra: api
+Requires-Dist: fastapi[standard]>=0.111; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.29; extra == "api"
+Requires-Dist: python-multipart>=0.0.9; extra == "api"
+
+# spike_discrim
+
+Real-time single-unit spike discrimination — input-layer feature benchmarking
+for spiking neural networks (SNNs).
+
+## Scientific Background
+
+Extracellular microwire recordings in human hippocampus contain action
+potentials from multiple nearby neurons superimposed on noise, multi-unit
+hash, and movement artifacts. Offline sorters (osort, Kilosort) resolve unit
+identity post-hoc, but **closed-loop applications** (real-time neurofeedback,
+brain-computer interfaces) require discrimination at < 5 ms latency on modest
+hardware.
+
+This project benchmarks candidate waveform features for the **input layer** of
+a real-time SNN discriminator, using:
+
+- **LFPy/NEURON** synthetic waveforms (known ground truth, controllable geometry)
+- **Hand-curated osort units** from intracranial microwire recordings
+
+The goal is a minimal, computationally certified feature set that can be
+hard-coded into the SNN input layer as population-code neurons with
+quantile-derived bin centers.
+
+See [`docs/MANIFEST.md`](docs/MANIFEST.md) for full design rationale and
+hyperparameter justification.
+
+---
+
+## Architecture
+
+```
+Input waveform (64 samples @ 30 kHz)
+         │
+    ┌────▼─────────────────────────────────┐
+    │  Tier 1 features (Numba JIT)         │  ← amplitude, d1, d2
+    │  Tier 2 features (Numba JIT)         │  ← abs-window-sum, energy
+    └────┬─────────────────────────────────┘
+         │  scalar summaries per snippet
+    ┌────▼─────────────────────────────────┐
+    │  WeightBank (input layer)            │  ← quantile-bin population code
+    │  Gaussian tuning neurons             │  ← real spikes → high activation
+    └────┬─────────────────────────────────┘
+         │  discriminant score ∈ [0, 1]
+    ┌────▼─────────────────────────────────┐
+    │  pass / fail gate (threshold)        │
+    └──────────────────────────────────────┘
+```
+
+---
+
+## Quick Start
+
+```bash
+# 1. Install (core deps)
+pip install -e .
+
+# 2. Install LFPy + NEURON for synthetic generation
+pip install -e ".[lfpy]"
+
+# 3. Generate synthetic LFPy dataset
+python scripts/run_lfpy_generation.py --output-dir data/synthetic --n-distances 8 --n-angles 16
+
+# 4. Run full benchmarks
+python scripts/run_benchmark.py --data-dir data/synthetic --results-dir data/results
+
+# 5. Run tests
+pytest
+```
+
+All outputs are written to `data/` as human-inspectable NPZ (waveforms) and
+Parquet (feature tables + metrics), plus JSON profiling logs.
+
+---
+
+## Project Layout
+
+```
+spike_discrim/
+├── src/spike_discrim/
+│   ├── features/        ← Numba-jitted Tier 1/2/3 kernels (zero-copy)
+│   ├── input_layer/     ← WeightBank: quantile-initialized population code
+│   ├── profiling/       ← Op counter + wall-clock timer
+│   ├── synthetic/       ← LFPy (biophysical) + procedural generators
+│   ├── adapters/        ← osort MATLAB (.mat) → canonical Python schema
+│   ├── benchmarking/    ← Single-feature and feature-set benchmark runners
+│   ├── models/          ← Interpretable classifiers (threshold, LDA, LR, SVM)
+│   ├── metrics/         ← AUC, F1, silhouette, Fisher score
+│   ├── io/              ← NPZ + Parquet read/write
+│   └── config/          ← YAML config loader + schema validation
+├── configs/
+│   ├── default.yaml     ← All runtime hyperparameters (documented)
+│   └── benchmarks.yaml  ← Feature set definitions and classifier lists
+├── data/
+│   ├── synthetic/       ← Generated waveforms (NPZ + Parquet labels)
+│   ├── real_units/      ← Converted osort data
+│   ├── results/         ← Benchmark outputs (timestamped Parquet + JSON)
+│   └── profiling/       ← Op count + timing results (JSON)
+├── docs/
+│   ├── MANIFEST.md      ← Publication-grade design rationale
+│   ├── features.yaml    ← Feature spec with cost/value scores
+│   └── spike_feature_validation.yaml  ← Full project specification
+├── tests/               ← Pytest unit tests
+└── scripts/             ← Entry-point scripts
+```
+
+---
+
+## Data Transparency
+
+Every run writes a timestamped subdirectory under `data/results/`:
+
+```
+data/results/20260405_143022/
+├── config_snapshot.yaml        ← exact config used
+├── waveform_summary.json       ← dataset statistics
+├── single_feature_ranks.parquet
+├── feature_set_ranks.parquet
+├── noise_rejection_report.json
+└── profiling/
+    ├── first_derivative_*.json
+    └── ...
+```
+
+Waveform arrays are stored as `float32` NPZ with separate label Parquet files
+so any downstream tool can inspect results without this package.
+
+---
+
+## Computational Efficiency
+
+All feature kernels are `@numba.njit(parallel=True, cache=True, fastmath=True)`
+and operate on contiguous `float32` memory views with pre-allocated output
+buffers. No array copies occur in the hot path.
+
+Op counts (adds, multiplies, memory accesses) per sample are documented in
+[`docs/features.yaml`](docs/features.yaml) and verified by the profiling module.
+
+---
+
+## Publications
+
+If this benchmarking framework identifies optimal features for a deployed
+real-time SNN, a methods paper will cite this repository. All hyperparameter
+decisions and rationale are documented in [`docs/MANIFEST.md`](docs/MANIFEST.md)
+for direct inclusion in Methods sections.

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>spike_discrim — Benchmark Dashboard</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header>
+    <h1>spike_discrim</h1>
+    <span class="subtitle">Feature Benchmarking · Input Layer Validation</span>
+    <nav style="margin-left:auto;display:flex;gap:1rem;font-size:0.82rem;">
+      <a href="/guide.html" style="color:var(--blue);" title="What am I looking at?">📖 Interpretation Guide</a>
+      <a href="/api/docs" target="_blank" style="color:var(--muted);">OpenAPI</a>
+    </nav>
+  </header>
+
+  <!-- ── Controls ───────────────────────────────────────────────────────── -->
+  <section class="controls card">
+    <div class="control-row">
+      <label for="run-select">Run</label>
+      <select id="run-select"><option value="">— loading —</option></select>
+      <button id="refresh-btn" title="Reload run list">↺</button>
+    </div>
+
+    <div class="control-row">
+      <span class="label">New run</span>
+      <label>Tier
+        <select id="tier-select">
+          <option value="2">2 (fast)</option>
+          <option value="3">3 (full)</option>
+          <option value="1">1 (minimal)</option>
+        </select>
+      </label>
+      <button id="run-btn">▶ Run pipeline</button>
+      <span id="job-status" class="job-status"></span>
+    </div>
+  </section>
+
+  <!-- ── Summary cards ──────────────────────────────────────────────────── -->
+  <section id="summary-section" class="card hidden">
+    <h2>Run summary</h2>
+    <div id="summary-cards" class="cards-row"></div>
+  </section>
+
+  <!-- ── Charts grid ────────────────────────────────────────────────────── -->
+  <div class="grid">
+
+    <!-- Feature rankings -->
+    <section class="card">
+      <h2>Single-feature ranking <span class="hint">(Fisher score)</span>
+        <a href="/guide.html#s-features" style="font-size:0.75rem;color:var(--muted);margin-left:0.5rem;text-decoration:none;">feature glossary</a>
+      </h2>
+      <div class="chart-wrap"><canvas id="feature-chart"></canvas></div>
+    </section>
+
+    <!-- Classifier benchmark -->
+    <section class="card">
+      <h2>Classifier benchmark <span class="hint">(balanced accuracy)</span>
+        <a href="/guide.html#s-metrics" style="font-size:0.75rem;color:var(--muted);margin-left:0.5rem;text-decoration:none;">what is balanced acc?</a>
+      </h2>
+      <div class="chart-wrap"><canvas id="classifier-chart"></canvas></div>
+    </section>
+
+    <!-- Kernel profiling -->
+    <section class="card">
+      <h2>Kernel throughput <span class="hint">(M snippets / s)</span></h2>
+      <div class="chart-wrap"><canvas id="profiling-chart"></canvas></div>
+    </section>
+
+    <!-- Waveform gallery -->
+    <section class="card">
+      <h2>Waveform gallery <span class="hint">(blue = spike · red = noise)</span>
+        <a href="/guide.html#s-panels" style="font-size:0.75rem;color:var(--muted);margin-left:0.5rem;text-decoration:none;" title="What am I looking at?">what is this?</a>
+      </h2>
+      <div class="chart-wrap"><canvas id="waveform-chart"></canvas></div>
+    </section>
+
+  </div>
+
+  <!-- ── Validation panel ───────────────────────────────────────────────── -->
+  <section class="card" id="validate-section">
+    <h2>Objective validation</h2>
+    <p class="hint">
+      These checks re-derive metrics from raw artefacts and compare against
+      stored values — proving the pipeline, storage, and API are self-consistent.
+    </p>
+    <div class="validate-btns">
+      <button class="validate-btn" data-action="metrics">Re-compute metrics</button>
+      <button class="validate-btn" data-action="feature_stats">Feature statistics</button>
+      <button class="validate-btn" data-action="roundtrip">CSV round-trip</button>
+      <button class="validate-btn" data-action="checksums">File checksums</button>
+      <button class="validate-btn" data-action="waveform_checksums">Waveform checksum</button>
+      <a id="csv-export-link" class="btn-link" href="#" target="_blank">⬇ Download CSV export</a>
+    </div>
+    <pre id="validate-output" class="validate-output hidden"></pre>
+  </section>
+
+  <footer>
+    <a href="/guide.html">Interpretation Guide</a> ·
+    <a href="/api/docs" target="_blank">OpenAPI docs</a> ·
+    <a href="/api/redoc" target="_blank">ReDoc</a>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
