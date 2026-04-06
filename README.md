@@ -1,4 +1,3 @@
-# spike_discrim
 
 
 # spike_discrim
