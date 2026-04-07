@@ -92,7 +92,7 @@ def run_afferent_clustering_benchmark(
 
     from spike_discrim.input_layer.weights import WeightBank
     from spike_discrim.io.storage import save_features_parquet, save_results_json
-    from spike_discrim.metrics.evaluation import compute_silhouette
+    from spike_discrim.metrics.evaluation import compute_silhouette, knn_purity_sweep
 
     spike_mask = (class_labels == 1) & (unit_ids > 0)
     X_spikes = np.ascontiguousarray(feature_matrix[spike_mask], dtype=np.float32)
@@ -164,7 +164,11 @@ def run_afferent_clustering_benchmark(
         nmi = float(normalized_mutual_info_score(y_units, pred))
         sil = compute_silhouette(family_activations, pred)
 
-        rows.append({
+        # KNN purity sweep on the *afferent activations* keyed by true unit_id
+        knn_k_values = (1, 5, 10, 20)
+        knn_results = knn_purity_sweep(family_activations, y_units, k_values=knn_k_values)
+
+        row: dict[str, Any] = {
             "family": family_name,
             "n_input_features": int(len(feat_idxs)),
             "n_bins": int(n_bins),
@@ -180,7 +184,9 @@ def run_afferent_clustering_benchmark(
             "inertia": float(km.inertia_),
             "feature_names": ",".join(family_feature_names),
             "cluster_to_unit_map": json.dumps(mapping),
-        })
+        }
+        row.update(knn_results)
+        rows.append(row)
 
         assign_df = pd.DataFrame({
             "unit_id": y_units.astype(np.int32),
@@ -205,6 +211,13 @@ def run_afferent_clustering_benchmark(
         },
     )
 
+    # Pull KNN purity columns for the top-ranked family
+    knn_cols = [c for c in df.columns if c.startswith("knn_purity_k")]
+    best_knn: dict[str, float | None] = {}
+    if len(df) and knn_cols:
+        for col in knn_cols:
+            best_knn[f"best_{col}"] = float(df.iloc[0][col])
+
     summary = {
         "n_spike_events": int(X_spikes.shape[0]),
         "n_units": int(n_units),
@@ -213,6 +226,7 @@ def run_afferent_clustering_benchmark(
         "best_family": str(df.iloc[0]["family"]) if len(df) else None,
         "best_matched_accuracy": float(df.iloc[0]["matched_accuracy"]) if len(df) else None,
         "best_ari": float(df.iloc[0]["ari"]) if len(df) else None,
+        **best_knn,
     }
     save_results_json(Path(results_dir) / "afferent_cluster_summary.json", summary)
     return df

@@ -9,6 +9,8 @@ from spike_discrim.metrics.evaluation import (
     mutual_information_score,
     compute_pairwise_aucs,
     evaluate_single_feature,
+    knn_purity,
+    knn_purity_sweep,
 )
 
 __all__ = [
@@ -16,4 +18,5 @@ __all__ = [
     "compute_confusion_matrix", "compute_silhouette",
     "fisher_score", "mutual_information_score",
     "compute_pairwise_aucs", "evaluate_single_feature",
+    "knn_purity", "knn_purity_sweep",
 ]

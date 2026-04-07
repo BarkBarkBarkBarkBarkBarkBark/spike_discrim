@@ -201,3 +201,64 @@ def evaluate_single_feature(
         result["auc_error"] = str(e)
 
     return result
+
+
+# --------------------------------------------------------------------------- #
+# KNN purity  (nearest-neighbour label consistency)                          #
+# --------------------------------------------------------------------------- #
+
+def knn_purity(
+    X: np.ndarray,
+    y: np.ndarray,
+    k: int = 5,
+) -> float:
+    """Mean K-nearest-neighbour purity.
+
+    For every sample *i* the purity is the fraction of its *k* nearest
+    neighbours that share the same label:
+
+    .. math::
+
+        \\text{purity}(i) = \\frac{|\\{j \\in \\mathrm{KNN}_k(i) : y_j = y_i\\}|}{k}
+
+    Returns the **mean** over all samples.
+
+    Parameters
+    ----------
+    X : ndarray, shape (n_samples, n_features)
+        Feature / activation matrix.
+    y : ndarray, shape (n_samples,)
+        Integer unit labels.
+    k : int
+        Number of neighbours (excluding the query point itself).
+    """
+    from sklearn.neighbors import NearestNeighbors
+
+    if len(X) < k + 1:
+        return float("nan")
+
+    nn = NearestNeighbors(n_neighbors=k + 1, algorithm="auto")
+    nn.fit(X)
+    # indices[:, 0] is the query point itself → skip it
+    neighbour_idx = nn.kneighbors(X, return_distance=False)[:, 1:]
+    neighbour_labels = y[neighbour_idx]  # (N, k)
+    matches = (neighbour_labels == y[:, np.newaxis]).sum(axis=1)  # (N,)
+    return float(matches.mean() / k)
+
+
+def knn_purity_sweep(
+    X: np.ndarray,
+    y: np.ndarray,
+    k_values: list[int] | tuple[int, ...] = (1, 5, 10, 20),
+) -> dict[str, float]:
+    """Compute KNN purity for several values of *k*.
+
+    Returns
+    -------
+    dict
+        ``{"knn_purity_k01": 0.93, "knn_purity_k05": 0.87, ...}``
+    """
+    results: dict[str, float] = {}
+    for k in sorted(k_values):
+        results[f"knn_purity_k{k:02d}"] = knn_purity(X, y, k=k)
+    return results
